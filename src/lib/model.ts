@@ -5,6 +5,8 @@ export const actors = [
     { id: 'other-organizer', name: '陈老师', role: 'organizer', label: '另一位组织者' },
 ] as const;
 export type Activity = {
+    cancelled_at?: string | null;
+    cancellation_reason?: string | null;
     id: string;
     owner_id: string;
     title: string;

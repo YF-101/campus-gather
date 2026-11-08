@@ -6,6 +6,8 @@ import type { Activity, ActivityInput, Attendee } from './model.ts';
 const schema = `
 create table if not exists people(id text primary key,name text not null,role text not null check(role in ('student','organizer')));
 create table if not exists activities(id text primary key,owner_id text not null references people(id),title text not null,description text not null,location text not null,category text not null,starts_at timestamptz not null,deadline timestamptz not null,capacity integer not null check(capacity between 1 and 500),check(deadline<=starts_at));
+alter table activities add column if not exists cancelled_at timestamptz;
+alter table activities add column if not exists cancellation_reason text;
 create table if not exists registrations(activity_id text references activities(id),user_id text references people(id),status text not null default 'registered' check(status in ('registered','cancelled')),registered_at timestamptz not null default now(),checked_in_at timestamptz,primary key(activity_id,user_id));
 create index if not exists registrations_active on registrations(activity_id,status);
 `;
@@ -23,22 +25,19 @@ export async function createService(path?: string) {
     }>('select id,name,role from people where id=$1', [id])).rows[0]; if (!a)
         throw Error('身份无效'); return a; }
     async function owned(uid: string, id: string) {
-        const a = await actor(uid);
-        if (a.role !== 'organizer')
-            throw Error('只有组织者可以管理活动');
+        await actor(uid);
         const row = (await db.query<{
-            owner_id: string;
-        }>('select owner_id from activities where id=$1', [id])).rows[0];
+            owner_id: string; cancelled_at: string | null;
+        }>('select owner_id,cancelled_at from activities where id=$1', [id])).rows[0];
         if (!row)
             throw Error('活动不存在');
         if (row.owner_id !== uid)
             throw Error('没有管理该活动的权限');
+        return row;
     }
     async function list(uid: string, own = false): Promise<Activity[]> { await actor(uid); return (await db.query<Activity>(`select a.*,p.name as organizer,(select count(*)::int from registrations r where r.activity_id=a.id and r.status='registered') as enrolled,exists(select 1 from registrations r where r.activity_id=a.id and r.user_id=$1 and r.status='registered') as registered,(select checked_in_at from registrations r where r.activity_id=a.id and r.user_id=$1 and r.status='registered') as checked_in_at from activities a join people p on p.id=a.owner_id where ($2::boolean=false or a.owner_id=$1) order by starts_at`, [uid, own])).rows; }
     async function create(uid: string, input: ActivityInput) {
-        const a = await actor(uid);
-        if (a.role !== 'organizer')
-            throw Error('只有组织者可以发布活动');
+        await actor(uid);
         if (!input || typeof input !== 'object')
             throw Error('活动信息无效');
         const { title, description, location, category, capacity, starts_at, deadline } = input;
@@ -53,22 +52,22 @@ export async function createService(path?: string) {
         if (!Number.isFinite(Date.parse(deadline)) || Date.parse(deadline) <= Date.now() || Date.parse(deadline) > Date.parse(starts_at))
             throw Error('报名截止时间应在现在之后、活动开始之前');
         const id = randomUUID();
-        await serialize(() => db.query('insert into activities values($1,$2,$3,$4,$5,$6,$7,$8,$9)', [id, uid, title.trim(), description.trim(), location.trim(), category, starts_at, deadline, capacity]));
+        await serialize(() => db.query('insert into activities(id,owner_id,title,description,location,category,starts_at,deadline,capacity) values($1,$2,$3,$4,$5,$6,$7,$8,$9)', [id, uid, title.trim(), description.trim(), location.trim(), category, starts_at, deadline, capacity]));
         return { id };
     }
     async function register(uid: string, id: string) {
-        if ((await actor(uid)).role !== 'student')
-            throw Error('请使用学生身份报名');
+        await actor(uid);
         return serialize(() => db.transaction(async (tx) => {
             const a = (await tx.query<{
-                capacity: number;
+                capacity: number; cancelled_at: string | null;
                 deadline: string;
                 starts_at: string;
             }>('select * from activities where id=$1 for update', [id])).rows[0];
             if (!a)
                 throw Error('活动不存在');
+            if(a.cancelled_at)throw Error('活动已取消');
             const existing = (await tx.query<{
-                status: string;
+                status: string; cancelled_at: string | null;
             }>('select status from registrations where activity_id=$1 and user_id=$2', [id, uid])).rows[0];
             if (existing?.status === 'registered')
                 throw Error('你已经报名此活动');
@@ -88,13 +87,13 @@ export async function createService(path?: string) {
             const r = (await tx.query<{
                 checked_in_at: string | null;
                 starts_at: string;
-                status: string;
-            }>(`select r.*,a.starts_at from registrations r join activities a on a.id=r.activity_id where r.activity_id=$1 and r.user_id=$2 for update`, [id, uid])).rows[0];
+                status: string; cancelled_at: string | null;
+            }>(`select r.*,a.starts_at,a.cancelled_at from registrations r join activities a on a.id=r.activity_id where r.activity_id=$1 and r.user_id=$2 for update`, [id, uid])).rows[0];
             if (!r || r.status !== 'registered')
                 throw Error('你尚未报名此活动');
             if (r.checked_in_at)
                 throw Error('已经签到，不能取消报名');
-            if (Date.parse(r.starts_at) <= Date.now())
+            if (Date.parse(r.starts_at) <= Date.now() && !r.cancelled_at)
                 throw Error('活动已开始，不能取消报名');
             await tx.query("update registrations set status='cancelled' where activity_id=$1 and user_id=$2", [id, uid]);
         }));
@@ -102,7 +101,8 @@ export async function createService(path?: string) {
     async function attendees(uid: string, id: string): Promise<Attendee[]> { await owned(uid, id); return (await db.query<Attendee>("select r.user_id,p.name,r.registered_at,r.checked_in_at from registrations r join people p on p.id=r.user_id where r.activity_id=$1 and status='registered' order by registered_at", [id])).rows; }
     async function checkIn(uid: string, id: string, target: string) {
         return serialize(async () => {
-            await owned(uid, id);
+            const event=await owned(uid, id);
+            if(event.cancelled_at)throw Error('活动已取消');
             return db.transaction(async (tx) => {
                 const rows = await tx.query("update registrations set checked_in_at=coalesce(checked_in_at,now()) where activity_id=$1 and user_id=$2 and status='registered' returning user_id", [id, target]);
                 if (!rows.rows.length)
@@ -110,7 +110,11 @@ export async function createService(path?: string) {
             });
         });
     }
-    return { auth: createAuth(db, serialize), create, list, register, cancel, attendees, checkIn, mine: async (uid: string) => (await list(uid)).filter(a => a.registered), close: async () => { await tail; await db.close(); }, seed: async () => {
+    async function cancelEvent(uid:string,id:string,reason=''){
+        if(typeof reason!=='string'||reason.length>200)throw Error('取消原因最多 200 字');
+        return serialize(async()=>{await owned(uid,id);await db.query("update activities set cancellation_reason=case when cancelled_at is null then $2 else cancellation_reason end,cancelled_at=coalesce(cancelled_at,now()) where id=$1",[id,reason.trim()||'发布者取消了活动']);});
+    }
+    return { cancelEvent, auth: createAuth(db, serialize), create, list, register, cancel, attendees, checkIn, mine: async (uid: string) => (await list(uid)).filter(a => a.registered), close: async () => { await tail; await db.close(); }, seed: async () => {
             if ((await db.query<{
                 n: number;
             }>('select count(*)::int as n from activities')).rows[0].n)

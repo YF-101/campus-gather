@@ -33,7 +33,7 @@ test('accounts and server sessions', async () => {
         finally {
             Date.now = now;
         }
-        await assert.rejects(s.create(a.user.id, { title: '越权活动' } as never), /组织者/);
+        await assert.rejects(s.create(a.user.id, { title: '不完整活动' } as never), /标题/);
         await assert.rejects(s.auth.signUp({ name: '', email: 'bad', password: 'short' }));
         await assert.rejects(s.auth.signUp({name:'错误邮箱',email:'a@b@c.example',password:'learning-test-password'}));
     }

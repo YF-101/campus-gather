@@ -1,6 +1,6 @@
 {
   "name": "campus-gather",
-  "version": "0.1.0",
+  "version": "0.2.0-rc.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -8,10 +8,10 @@
     "build": "next build",
     "start": "next start --hostname 127.0.0.1 --port 3010",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test tests/service.test.ts tests/auth.test.ts tests/email-verification.test.ts tests/roster.test.ts tests/showcase.test.ts",
+    "test": "node --experimental-strip-types --test tests/service.test.ts tests/auth.test.ts tests/email-verification.test.ts tests/roster.test.ts tests/showcase.test.ts tests/cloud-auth-flow.test.ts tests/member-publishing.test.ts tests/activity-cancellation.test.ts tests/activity-mutation.test.ts",
     "start:accounts": "CAMPUS_MODE=accounts next start --hostname 127.0.0.1 --port 3011",
     "test:http": "node tests/http-auth.mjs",
-    "test:cloudbase": "node --test --experimental-test-isolation=none --test-timeout=30000 tests/cloudbase.test.mjs tests/account-enrollment-policy.test.mjs",
+    "test:cloudbase": "node --test --experimental-test-isolation=none --test-timeout=30000 tests/cloudbase.test.mjs tests/account-enrollment-policy.test.mjs tests/member-publishing-cloud.test.mjs",
     "build:cloud": "node scripts/build-cloud.mjs",
     "test:cloud-anonymous": "node tests/cloud-anonymous.mjs",
     "test:postgres": "node tests/postgres-concurrency.mjs",

@@ -12,8 +12,8 @@ const paths=[
  'src','tests','scripts','.github','cloudbase/migrations','cloudbase/verify-organizer-rollback.sql',
  '.env.example','.gitignore','.nvmrc','next-env.d.ts','next.config.ts','tsconfig.json','postcss.config.mjs',
  'package.json','package-lock.json','README.md','LICENSE','SECURITY.md','CONTRIBUTING.md','CHANGELOG.md',
- 'docs/ARCHITECTURE.md','docs/SELF_HOSTING.md','docs/SHOWCASE.md','docs/TESTING.md','docs/PORTFOLIO.md','docs/POSTGRES_CONCURRENCY.md',
- 'docs/screenshots/showcase-online-home.png','docs/screenshots/showcase-mobile.png','docs/screenshots/showcase-online-roster.png',
+ 'docs/PRODUCT_READINESS.md','docs/ARCHITECTURE.md','docs/SELF_HOSTING.md','docs/SHOWCASE.md','docs/TESTING.md','docs/PORTFOLIO.md','docs/POSTGRES_CONCURRENCY.md',
+ 'docs/screenshots/auth-recovery-mobile.png','docs/screenshots/member-cancellation-demo.png','docs/screenshots/showcase-online-home.png','docs/screenshots/showcase-mobile.png','docs/screenshots/showcase-online-roster.png',
 ];
 async function noSymlinks(path){
  const stat=await lstat(path);assert.ok(!stat.isSymbolicLink(),`Symlinks not allowed: ${path}`);

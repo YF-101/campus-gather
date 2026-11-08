@@ -6,14 +6,14 @@
 
 | 命令 | 已验证结果 | 使用的数据 |
 | --- | --- | --- |
-| `npm test` | 26 项通过 | 内存模型与虚构账号，覆盖业务、认证、CSV、展示隔离 |
-| `npm run test:cloudbase` | 2 组 SQL 场景通过 | 内存 PGlite、平台身份夹具和当前迁移；不能证明多连接能力 |
-| `npm run test:postgres` | 6 项通过 | 临时 PostgreSQL 容器，独立连接与锁等待；包括缺锁负向对照 |
+| `npm test` | 43 项通过 | 内存模型与虚构账号，覆盖业务、认证、CSV、展示隔离 |
+| `npm run test:cloudbase` | 3 组 SQL 场景通过 | 内存 PGlite、平台身份夹具和当前迁移；不能证明多连接能力 |
+| `npm run test:postgres` | 7 项通过 | 临时 PostgreSQL 容器，独立连接与锁等待；包括缺锁负向对照 |
 | `npm run test:http` | 通过 | 3011 本机账号服务与随机虚构学生 |
 | `npm run build` / `npm run typecheck` | 通过 | 本机生产构建与静态类型检查 |
 | `npm run build:cloud` / `npm run check:artifact` | 通过 | 云端静态入口、资源引用及敏感目录排除 |
 
-SQL 场景使用当前三份迁移。修改业务后应重新运行相关命令，历史通过记录不代表任意后续改动仍然通过。[多连接报告](POSTGRES_CONCURRENCY.md) 说明了同步屏障、断言和证据边界。
+SQL 场景使用当前五份迁移（前两组保留历史升级策略，新增组验证当前发布规则与活动取消）。修改业务后应重新运行相关命令，历史通过记录不代表任意后续改动仍然通过。[多连接报告](POSTGRES_CONCURRENCY.md) 说明了同步屏障、断言和证据边界。
 
 ## HTTP 集成
 
@@ -46,5 +46,7 @@ NEXT_PUBLIC_CAMPUS_CLOUDBASE_ENV_ID=你的公开环境ID npm run test:cloud-anon
 ## 仍待完成
 
 真实云端双账号闭环、手机真机、不同运营商网络、生产负载、账号生命周期与运维恢复。当前允许演示提前签到，尚无现场身份核验。不要对未测部分作完成或性能承诺。
+
+认证与新发布策略本轮代码仍需完成真实云端注册、部署及联合验收；不能把本机模拟流程写成线上通过。
 
 GitHub Actions 会自动运行本机/SQL/HTTP/构建/产物以及独立 PostgreSQL 测试，不使用共享云端凭据。工作流文件存在不代表其远端运行已成功，应以仓库 Actions 实际结果为准。

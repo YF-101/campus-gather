@@ -8,7 +8,7 @@ export default function AuthForm() {
 }
 function LocalAuthForm(){
     const [register, setRegister] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState('');
-    return <main className="auth-layout"><section className="auth-art"><a href="/" className="brand"><span className="brand-symbol">集</span><span>集刻<small>CAMPUS GATHER</small></span></a><span className="auth-flower">✳</span><div><span className="eyebrow">YOUR NEXT CHAPTER STARTS HERE.</span><h1>让每一次相遇，<br />都有你的名字。</h1><p>发现活动，留住期待。<br />和同频的人，一起把校园过得更有意思。</p></div><small>LOCAL ACCOUNTS / 学习与功能验证版本</small></section><section className="auth-card"><span className="eyebrow">A SPACE FOR YOUR CURIOSITY</span><h2>{register ? '创建你的集刻账号' : '欢迎回来'}</h2><p>{register ? '新账号默认是学生，可以浏览和报名活动。' : '登录后，查看只属于你的活动安排。'}</p><form onSubmit={async (e) => {
+    return <main className="auth-layout"><section className="auth-art"><a href="/" className="brand"><span className="brand-symbol">集</span><span>集刻<small>CAMPUS GATHER</small></span></a><span className="auth-flower">✳</span><div><span className="eyebrow">YOUR NEXT CHAPTER STARTS HERE.</span><h1>让每一次相遇，<br />都有你的名字。</h1><p>发现活动，留住期待。<br />和同频的人，一起把校园过得更有意思。</p></div><small>LOCAL ACCOUNTS / 学习与功能验证版本</small></section><section className="auth-card"><span className="eyebrow">A SPACE FOR YOUR CURIOSITY</span><h2>{register ? '创建你的集刻账号' : '欢迎回来'}</h2><p>{register ? '注册后可报名，也能发起自己的活动。' : '登录后，查看只属于你的活动安排。'}</p><form onSubmit={async (e) => {
             e.preventDefault();
             if (busy)
                 return;

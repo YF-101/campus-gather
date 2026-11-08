@@ -40,8 +40,8 @@ async function gate(statement){
  await until(()=>p.output().includes('GATE_READY'),'transaction gate');
  return async()=>{p.child.stdin.end('commit;\n');const r=await p.result;assert.equal(r.code,0,r.stderr);};
 }
-async function race(id,operations,{before='',advisory=false}={}){
- const release=await gate(advisory?'select pg_advisory_xact_lock(814017);':`select id from public.cg_activities where id='${id}' for update;${before}`);
+async function race(id,operations,{before='',advisory=false,profile=false}={}){
+ const release=await gate(advisory?'select pg_advisory_xact_lock(814017);':profile?"select id from public.cg_profiles where id='teacher' for update;":`select id from public.cg_activities where id='${id}' for update;${before}`);
  const tag=randomUUID();
  const work=operations.map(({uid,statement},i)=>{
   const p=session(`${tag}-${i}`);p.child.stdin.end(identity(uid)+statement+'\n');return p.result;
@@ -65,7 +65,7 @@ try{
  await until(async()=>{const p=start(['exec',container,'pg_isready','-h','127.0.0.1','-U','postgres']);p.child.stdin.end();return (await p.result).code===0;},'PostgreSQL readiness');
  console.log(await sql('select version();'));
  await sql(`create role anon;create role authenticated;create schema auth;create table auth.users(sub text,email_verified boolean);create function auth.uid() returns text language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')$$;grant usage on schema auth to anon,authenticated;grant execute on function auth.uid() to anon,authenticated;insert into auth.users values('teacher',true),('student-a',false),('student-b',false);`);
- for(const file of ['202611080001_campus.sql','202611080002_email_status.sql','202611080003_account_enrollment.sql'])await sql(await readFile(new URL(`../cloudbase/migrations/${file}`,import.meta.url),'utf8'));
+ for(const file of ['202611080001_campus.sql','202611080002_email_status.sql','202611080003_account_enrollment.sql','202611080004_member_publishing.sql','202611080005_activity_cancellation.sql'])await sql(await readFile(new URL(`../cloudbase/migrations/${file}`,import.meta.url),'utf8'));
  for(const uid of ['teacher','student-a','student-b'])await sql(identity(uid)+"select public.cg_call('profile');");
  await sql("update public.cg_profiles set role='organizer' where id='teacher';");
 
@@ -107,7 +107,13 @@ try{
  id=await event();results=await race(id,['student-a','student-b'].map(uid=>({uid,statement:call('register',id).replace('public.cg_call(','public.cg_call_unsafe_control(')})),{advisory:true});
  assert.equal(results.filter(r=>r.code===0).length,2);const unsafeCount=await active(id);assert.equal(unsafeCount,2);assert.throws(()=>oneSeat(unsafeCount),/one-seat/);
  console.log('PASS: negative control detects overbooking when the activity lock is removed.');
- console.log('6 PostgreSQL multi-connection scenarios passed. This is isolated database testing, not real CloudBase login or load testing.');
+ assert.equal(Number(await sql("select count(*) from public.cg_activities where owner_id='teacher';")),4);
+ const publication="select public.cg_call('create','{\"title\":\"限额竞争测试\",\"description\":\"虚构测试\",\"location\":\"测试容器\",\"category\":\"技术\",\"capacity\":1,\"starts_at\":\"2099-12-02T10:00:00Z\",\"deadline\":\"2099-12-01T10:00:00Z\"}'::jsonb);";
+ results=await race(id,[0,1].map(()=>({uid:'teacher',statement:publication})),{profile:true});
+ assert.equal(results.filter(r=>r.code===0).length,1);assert.match(results.find(r=>r.code!==0).stderr,/24 小时.*5/);
+ assert.equal(Number(await sql("select count(*) from public.cg_activities where owner_id='teacher';")),5);
+ console.log('PASS: concurrent publications cannot bypass the per-member rolling publication limit.');
+ console.log('7 PostgreSQL multi-connection scenarios passed. This is isolated database testing, not real CloudBase login or load testing.');
 }finally{
  for(const child of children)child.kill('SIGTERM');
  if(created)await docker(['rm','--force','--volumes',container]);
