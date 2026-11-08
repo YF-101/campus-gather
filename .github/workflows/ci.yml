@@ -1,0 +1,63 @@
+name: Verification
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verification-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  application:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run test:cloudbase
+      - run: npm run build
+      - run: npm run typecheck
+      - name: Local account HTTP integration
+        shell: bash
+        run: |
+          npm run start:accounts > /tmp/campus-accounts.log 2>&1 &
+          server=$!
+          trap 'kill "$server" 2>/dev/null || true' EXIT
+          node --input-type=module -e 'for(let i=0;i<100;i++){try{if((await fetch("http://127.0.0.1:3011/auth")).ok)process.exit(0)}catch{}await new Promise(r=>setTimeout(r,200))}throw Error("Account server did not become ready")'
+          npm run test:http
+      - name: Cloud static export without credentials
+        run: npm run build:cloud
+        env:
+          NEXT_PUBLIC_CAMPUS_CLOUDBASE_ENV_ID: campus-ci-placeholder
+      - run: npm run check:artifact
+      - name: Confirm cloud build restored local source
+        run: git diff --exit-code -- src/app
+
+  postgres-concurrency:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - run: docker pull postgres:16-alpine
+      - run: npm run test:postgres

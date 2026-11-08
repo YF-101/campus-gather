@@ -1,0 +1,40 @@
+{
+  "name": "campus-gather",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev --hostname 127.0.0.1 --port 3010",
+    "build": "next build",
+    "start": "next start --hostname 127.0.0.1 --port 3010",
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --test tests/service.test.ts tests/auth.test.ts tests/email-verification.test.ts tests/roster.test.ts tests/showcase.test.ts",
+    "start:accounts": "CAMPUS_MODE=accounts next start --hostname 127.0.0.1 --port 3011",
+    "test:http": "node tests/http-auth.mjs",
+    "test:cloudbase": "node --test --experimental-test-isolation=none --test-timeout=30000 tests/cloudbase.test.mjs tests/account-enrollment-policy.test.mjs",
+    "build:cloud": "node scripts/build-cloud.mjs",
+    "test:cloud-anonymous": "node tests/cloud-anonymous.mjs",
+    "test:postgres": "node tests/postgres-concurrency.mjs",
+    "check:artifact": "node scripts/check-public-artifact.mjs",
+    "prepare:open-source": "node scripts/prepare-open-source.mjs"
+  },
+  "dependencies": {
+    "@cloudbase/js-sdk": "^3.11.0",
+    "@electric-sql/pglite": "0.5.15",
+    "@supabase/postgrest-js": "^2.119.0",
+    "next": "16.4.5",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "4.3.4",
+    "@types/node": "^22",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "tailwindcss": "4.3.4",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  }
+}

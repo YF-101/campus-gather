@@ -1,0 +1,22 @@
+import assert from 'node:assert/strict';
+import {randomBytes,randomUUID} from 'node:crypto';
+const base=process.env.CAMPUS_HTTP_TEST_ORIGIN||'http://127.0.0.1:3011';
+assert.match(base,/^http:\/\/127\.0\.0\.1:\d{1,5}$/,'HTTP fixture must target a loopback-only account server');
+const email=`http-test-${randomUUID()}@example.test`,password=randomBytes(24).toString('hex');
+async function post(path,body,cookie='',extra={}){return fetch(base+path,{method:'POST',headers:{'Content-Type':'application/json',origin:base,...(cookie?{cookie}:{}),...extra},body:JSON.stringify(body)});}
+assert.equal((await fetch(base+'/api/activities',{headers:{'x-demo-user':'organizer'}})).status,401);
+assert.equal((await post('/api/auth',{action:'login',email,password},'',{origin:'https://other.example'})).status,403);
+let result=await post('/api/auth',{action:'register',name:'接口验证同学',email,password,role:'organizer'});
+assert.equal(result.status,200);const cookie=result.headers.get('set-cookie');assert.match(cookie,/HttpOnly/);assert.match(cookie,/SameSite=Lax/);assert.match(cookie,/Max-Age=28800/);
+const identity=await result.json();assert.equal(identity.user.role,'student');assert.ok(!JSON.stringify(identity).includes(password));assert.ok(!('token' in identity));
+const session=cookie.split(';')[0];
+let response=await fetch(base+'/api/activities',{headers:{cookie:session,'x-demo-user':'organizer'}});assert.equal(response.status,200);const activities=(await response.json()).data;assert.ok(activities.length>0);
+response=await post('/api/activities',{action:'create',input:{}},session,{'x-demo-user':'organizer'});assert.match((await response.json()).error,/组织者/);
+const activity=activities.find(a=>a.enrolled<a.capacity&&Date.parse(a.deadline)>Date.now());assert.ok(activity);
+assert.equal((await post('/api/activities',{action:'register',id:activity.id},session)).status,200);
+assert.equal((await post('/api/activities',{action:'register',id:activity.id},session)).status,400);
+assert.equal((await post('/api/activities',{action:'cancel',id:activity.id},session)).status,200);
+assert.equal((await post('/api/auth',{action:'logout'},session)).status,200);
+assert.equal((await fetch(base+'/api/activities',{headers:{cookie:session,'x-demo-user':'organizer'}})).status,401);
+result=await post('/api/auth',{action:'login',email,password});assert.equal(result.status,200);const newCookie=result.headers.get('set-cookie').split(';')[0];assert.notEqual(newCookie,session);assert.equal((await post('/api/auth',{action:'logout'},newCookie)).status,200);
+console.log('HTTP integration passed: registration, HttpOnly session, spoofing rejection, enrollment, cancellation, logout revocation, password login. Synthetic test account only; no credentials printed.');
