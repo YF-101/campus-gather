@@ -12,8 +12,8 @@ test('showcase starts with fictional data, independent instances, and detached r
  first.call('organizer','create',input());assert.equal(first.call('student','list').length,5);assert.equal(second.call('student','list').length,4);
  assert.throws(()=>first.call('real-cloud-account','list'),/模拟身份/);
 });
-test('showcase enforces organizer ownership and student capacity rules',()=>{
- const store=createShowcaseStore(()=>now);assert.throws(()=>store.call('student','create',input()),/组织者/);
+test('showcase enforces event ownership and capacity rules',()=>{
+ const store=createShowcaseStore(()=>now);assert.ok(store.call('student','create',input()).id);
  const {id}=store.call('organizer','create',input());assert.throws(()=>store.call('other-organizer','attendees',{id}),/权限/);
  store.call('student','register',{id});assert.throws(()=>store.call('student','register',{id}),/已经报名/);assert.throws(()=>store.call('friend','register',{id}),/名额已满/);
  store.call('student','cancel',{id});store.call('friend','register',{id});assert.equal(store.call('organizer','attendees',{id}).length,1);

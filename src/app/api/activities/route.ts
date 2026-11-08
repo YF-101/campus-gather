@@ -27,6 +27,9 @@ export async function POST(req: Request) {
             case 'create':
                 result = await s.create(uid, data.input);
                 break;
+            case 'cancel_activity':
+                await s.cancelEvent(uid,data.id,data.input?.reason);
+                break;
             case 'register':
                 await s.register(uid, data.id);
                 break;

@@ -34,7 +34,6 @@ export function createShowcaseStore(clock:()=>number=Date.now){
   const actor=actors.find(a=>a.id===user);if(!actor)throw Error('请选择有效的模拟身份');
   if(action==='list')return events.map(event=>{const reg=rows(event.id).get(user);return {...event,enrolled:rows(event.id).size,registered:Boolean(reg),checked_in_at:reg?.checked_in_at??null};});
   if(action==='create'){
-   if(actor.role!=='organizer')throw Error('只有模拟组织者可以发布活动');
    const text=(key:string,min:number,max:number)=>{const value=payload[key];if(typeof value!=='string'||value.trim().length<min||value.trim().length>max)throw Error('请检查活动标题、地点和介绍');return value.trim();};
    const title=text('title',2,60),description=text('description',1,2000),location=text('location',1,80);
    const category=String(payload.category);if(!(categories as readonly string[]).includes(category))throw Error('活动分类无效');
@@ -44,20 +43,25 @@ export function createShowcaseStore(clock:()=>number=Date.now){
    const id=`showcase-created-${++serial}`;events.push({id,owner_id:user,title,description,location,category,capacity,starts_at:new Date(starts).toISOString(),deadline:new Date(deadline).toISOString(),organizer:actor.name});registrations.set(id,new Map());return {id};
   }
   const event=eventById(payload.id),enrolled=rows(event.id);
+  if(action==='cancel_activity'){
+   if(event.owner_id!==user)throw Error('没有管理这场模拟活动的权限');
+   const reason=payload.reason??'';if(typeof reason!=='string'||reason.length>200)throw Error('取消原因最多 200 字');
+   if(!event.cancelled_at){event.cancelled_at=new Date(clock()).toISOString();event.cancellation_reason=reason.trim()||'发布者取消了活动';}return {ok:true};
+  }
+  if(event.cancelled_at&&(action==='register'||action==='checkin'))throw Error('活动已取消');
   if(action==='attendees'||action==='checkin'){
-   if(actor.role!=='organizer'||event.owner_id!==user)throw Error('没有管理这场模拟活动的权限');
+   if(event.owner_id!==user)throw Error('没有管理这场模拟活动的权限');
    if(action==='attendees')return [...enrolled.values()].map(row=>({...row}));
    const row=enrolled.get(String(payload.user));if(!row)throw Error('没有找到有效报名');row.checked_in_at??=new Date(clock()).toISOString();return {ok:true};
   }
   if(action==='register'){
-   if(actor.role!=='student')throw Error('请切换为模拟学生身份报名');
    if(enrolled.has(user))throw Error('你已经报名此活动');
    if(Date.parse(event.deadline)<=clock())throw Error('报名已经截止');
    if(enrolled.size>=event.capacity)throw Error('名额已满');
    enrolled.set(user,{user_id:user,name:actor.name,registered_at:new Date(clock()).toISOString(),checked_in_at:null});return {ok:true};
   }
   if(action==='cancel'){
-   const row=enrolled.get(user);if(!row)throw Error('你尚未报名此活动');if(row.checked_in_at)throw Error('已签到，不能取消报名');if(Date.parse(event.starts_at)<=clock())throw Error('活动已开始，不能取消报名');enrolled.delete(user);return {ok:true};
+   const row=enrolled.get(user);if(!row)throw Error('你尚未报名此活动');if(row.checked_in_at)throw Error('已签到，不能取消报名');if(Date.parse(event.starts_at)<=clock()&&!event.cancelled_at)throw Error('活动已开始，不能取消报名');enrolled.delete(user);return {ok:true};
   }
   throw Error('演示操作不存在');
  }

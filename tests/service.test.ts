@@ -7,8 +7,8 @@ test('activity registration and organizer rules', async (t) => {
     const s = await createService();
     try {
         const activity = await s.create('organizer', input);
-        await t.test('student cannot publish, other organizer cannot manage', async () => {
-            await assert.rejects(s.create('student', input), /组织者/);
+        await t.test('only the event owner can manage registrations', async () => {
+            await assert.rejects(s.attendees('student', activity.id), /权限/);
             await assert.rejects(s.attendees('other-organizer', activity.id), /权限/);
         });
         await t.test('concurrent final-seat requests produce exactly one successful registration', async () => {
